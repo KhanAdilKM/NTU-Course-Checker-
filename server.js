@@ -1,6 +1,6 @@
 const express = require("express");
 const axios = require("axios");
-const cheerio = require("cheerio");
+const { parse } = require("node-html-parser");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,16 +40,16 @@ app.get("/api/diplomas", async (req, res) => {
       throw new Error("Empty NTU response");
     }
 
-    const $ = cheerio.load(response.data);
+    const root = parse(response.data);
     const map = {};
 
-    $("table tr").each((_, row) => {
-      const cols = $(row).find("td");
+    root.querySelectorAll("table tr").forEach((row) => {
+      const cols = row.querySelectorAll("td");
 
       if (cols.length >= 3) {
-        const institute = $(cols[0]).text().trim();
-        const diploma = $(cols[1]).text().trim();
-        const course = $(cols[2]).text().trim();
+        const institute = cols[0].text.trim();
+        const diploma = cols[1].text.trim();
+        const course = cols[2].text.trim();
 
         if (!institute || !diploma) return;
 
@@ -71,6 +71,9 @@ app.get("/api/diplomas", async (req, res) => {
       }
     });
 
+    // free memory
+    response.data = null;
+
     const result = Object.values(map);
 
     cachedData = result;
@@ -88,5 +91,5 @@ app.get("/api/diplomas", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
 });
