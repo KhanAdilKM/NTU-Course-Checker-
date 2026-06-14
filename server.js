@@ -3,8 +3,6 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 
 const app = express();
-
-// IMPORTANT: Render port fix
 const PORT = process.env.PORT || 3000;
 
 const URL =
@@ -12,78 +10,75 @@ const URL =
 
 app.use(express.static("public"));
 
-/* -------------------- HOME ROUTE -------------------- */
+/* ---------------- HOME ---------------- */
 app.get("/", (req, res) => {
-  res.send("NTU Course Checker API is running 🚀");
+  res.sendFile(__dirname + "/public/index.html");
 });
 
-/* -------------------- CACHE -------------------- */
+/* ---------------- CACHE ---------------- */
 let cachedData = null;
 let lastFetch = 0;
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+const CACHE_DURATION = 10 * 60 * 1000; // 10 min
 
-/* -------------------- API ROUTE -------------------- */
+/* ---------------- API ---------------- */
 app.get("/api/diplomas", async (req, res) => {
   try {
     const now = Date.now();
 
-    // Return cached data if still fresh
     if (cachedData && now - lastFetch < CACHE_DURATION) {
       return res.json(cachedData);
     }
 
-    console.log("Fetching NTU data...");
+    console.log("Scraping NTU...");
 
     const response = await axios.get(URL, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-      },
-      timeout: 10000, // prevent hanging requests
+      headers: { "User-Agent": "Mozilla/5.0" },
+      timeout: 15000,
     });
 
-    const $ = cheerio.load(response.data);
-    const diplomasMap = {};
+    if (!response.data) {
+      throw new Error("Empty NTU response");
+    }
 
-    $("table tr").each((i, row) => {
+    const $ = cheerio.load(response.data);
+    const map = {};
+
+    $("table tr").each((_, row) => {
       const cols = $(row).find("td");
 
       if (cols.length >= 3) {
         const institute = $(cols[0]).text().trim();
-        const diplomaName = $(cols[1]).text().trim();
-        const courseName = $(cols[2]).text().trim();
+        const diploma = $(cols[1]).text().trim();
+        const course = $(cols[2]).text().trim();
 
-        if (!institute || !diplomaName) return;
+        if (!institute || !diploma) return;
 
-        const key = institute + "|" + diplomaName;
+        const key = institute + "|" + diploma;
 
-        if (!diplomasMap[key]) {
-          diplomasMap[key] = {
+        if (!map[key]) {
+          map[key] = {
             institute,
-            diploma: diplomaName,
+            diploma,
             courses: [],
           };
         }
 
-        if (
-          courseName &&
-          !diplomasMap[key].courses.includes(courseName)
-        ) {
-          diplomasMap[key].courses.push(courseName);
+        if (course && !map[key].courses.includes(course)) {
+          map[key].courses.push(course);
         }
 
-        diplomasMap[key].count = diplomasMap[key].courses.length;
+        map[key].count = map[key].courses.length;
       }
     });
 
-    const results = Object.values(diplomasMap);
+    const result = Object.values(map);
 
-    // Save to cache
-    cachedData = results;
+    cachedData = result;
     lastFetch = now;
 
-    res.json(results);
+    res.json(result);
   } catch (err) {
-    console.error("Scraping error:", err.message);
+    console.error("API Error:", err.message);
 
     res.status(500).json({
       error: "Scraping failed",
@@ -92,7 +87,6 @@ app.get("/api/diplomas", async (req, res) => {
   }
 });
 
-/* -------------------- START SERVER -------------------- */
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
