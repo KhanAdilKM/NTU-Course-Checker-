@@ -3,12 +3,14 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const URL = "https://wis.ntu.edu.sg/webexe/owa/adm_appl.relevant_diploma?student_type=F";
 
 app.use(express.static("public"));
-
+app.get("/", (req, res) => {
+    res.send("NTU Course Checker API is running 🚀");
+});
 app.get("/api/diplomas", async (req, res) => {
     try {
         const response = await axios.get(URL, {
